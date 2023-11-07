@@ -50,6 +50,12 @@ async function getUser(id) {
     `,
     id
   );
+  if (!result) {
+    return {
+      status: 404,
+      error: 'User not found',
+    };
+  }
 
   return result;
 }
@@ -80,10 +86,15 @@ async function createUser(username) {
 }
 
 async function createExercise(userID, description, duration, date) {
+  const user = await getUser(userID);
+  if (user.error) {
+
+    return user;
+  }
   try {
     date = date ? new Date(date).toISOString() : new Date().toISOString();
   } catch {
-    return { error: 'Invalid date' };
+    return { status: 400, error: 'Invalid date' };
   }
   const result = await SQL3.run(
     `
@@ -126,6 +137,11 @@ async function createExercise(userID, description, duration, date) {
 }
 
 async function getLogs(userID, options) {
+  const user = await getUser(userID);
+  if (user.error) {
+
+    return user;
+  }
   let { from, to, limit } = options;
   const start = new Date('1900-01-01').toISOString();
   const end = new Date('2100-01-01').toISOString();
@@ -133,14 +149,15 @@ async function getLogs(userID, options) {
     from = from ? new Date(from).toISOString() : start;
     to = to ? new Date(to).toISOString() : end;
   } catch {
-    return { error: 'Invalid date' };
+    return { status: 400, error: 'Invalid date' };
   }
   const sqlFrom = `
     FROM Exercises
     WHERE userID = ?
     AND unixepoch(date) >= unixepoch(?)
     AND unixepoch(date) <= unixepoch(?)
-  `;
+    ORDER BY date ASC
+    `;
   let count, exercises;
   try {
     count = await SQL3.get(`SELECT COUNT(*) ${sqlFrom}`, userID, from, to );
@@ -150,7 +167,6 @@ async function getLogs(userID, options) {
     console.log(e);
     return null;
    }
-  const user = await getUser(userID);
   if (user !== null && exercises !== null) {
 
     return {

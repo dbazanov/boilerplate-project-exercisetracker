@@ -2,10 +2,13 @@ const server = require('../services/server');
 
 exports.getUser = async (req, res) => {
   const user = await server.getUser(req.params.id);
-  if (user) {
-    res.send(user);
+  if (user.error) {
+    res.status(user.status).send({error: user.error});
+  }
+  else if (!user) {
+    res.status(500).end();
   } else {
-    res.status(404).send({'error': 'User not found'});
+    res.send(user);
   }
 };
 
@@ -19,7 +22,6 @@ exports.getUsers = async (req, res) => {
 };
 
 exports.createUser = async (req, res) => {
-  const body = req.body;
   if (req.body.username) {
     const id = await server.createUser(req.body.username);
     if (id.error) {
@@ -39,12 +41,24 @@ exports.createUser = async (req, res) => {
 
 exports.createExercise = async (req, res) => {
   const { description, duration, date } = req.body;
+  if (!description || !duration) {
+    res.status(400).send({
+      error: 'Description and duration cannot be empty',
+    });
+    return;
+  }
+  if (isNaN(+duration)) {
+    res.status(400).send({
+      error: 'Duration must be a number',
+    });
+    return;
+  }
   const id = req.params.id;
   const exercise = await server.createExercise(id, description, duration, date);
   if (!exercise) {
     res.status(500).end();
   } else if (exercise.error) {
-    res.status(400).send(exercise);
+    res.status(exercise.status).send({ error: exercise.error });
   } else {
     res.send(exercise);
   }
@@ -53,11 +67,18 @@ exports.createExercise = async (req, res) => {
 exports.getUserLogs = async (req, res) => {
   const id = req.params.id;
   const { from, to, limit } = req.query;
+  if (limit && isNaN(+limit)) {
+    res.status(400).send({
+      error: 'Limit must be a number',
+    });
+
+    return;
+  }
   const logs = await server.getLogs(id, { from, to, limit });
   if (!logs) {
     res.status(500).end();
   } else if (logs.error) {
-    res.status(400).send(logs);
+    res.status(logs.status || 400).send({ error: logs.error });
   } else {
     res.send(logs);
   }
